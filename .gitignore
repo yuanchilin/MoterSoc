@@ -35,7 +35,6 @@ vivado*.log
 vivado*.jou
 
 # Program
-program.tcl
 transcript
 
 # Binary
