@@ -1,0 +1,42 @@
+# Vivado
+*.xpr
+*.log
+*.jou
+*.backup.*
+*.pb
+*.rpt
+*.dcp
+*.bit
+*.ltx
+.runs/
+.cache/
+.hw/
+.ip_user_files/
+.sim/
+.xpr.gui
+*.wdf
+
+# Simulation
+*.vcd
+*.vvp
+work/
+*.vstf
+
+# ISE/Vivado backup
+.Xil/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vivado pid
+vivado*.str
+vivado*.log
+vivado*.jou
+
+# Program
+program.tcl
+transcript
+
+# Binary
+test_cpu
