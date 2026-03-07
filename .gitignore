@@ -39,3 +39,7 @@ transcript
 
 # Binary
 test_cpu
+
+# 新增：忽略更多Vivado临时文件
+riscv_davinci/riscv_davinci.cache/
+riscv_davinci/riscv_davinci.runs/
