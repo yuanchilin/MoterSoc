@@ -8,36 +8,58 @@
 - **PWM**: 脉冲宽度调制输出 (蜂鸣器)
 - **UART**: 串行通信接口 (115200波特率)
 
+## 项目特性
+
+- **五级流水线CPU**: 支持完整的RV32I指令集
+- **Wishbone总线架构**: 模块化设计，易于扩展
+- **完整的测试环境**: 包含仿真测试和演示程序
+- **详细的文档**: 完整的使用说明和开发指南
+
 ## 目录结构
 
 ```
 Riscv/
-├── rtl/
+├── rtl/                        # RTL源代码
 │   ├── cpu/
 │   │   └── riscv_core.v       # RISC-V CPU核心 (RV32I)
-│   ├── peripheral/
+│   ├── peripheral/             # 外设模块
 │   │   ├── gpio.v             # GPIO外设
 │   │   ├── pwm.v              # PWM外设
 │   │   └── uart.v             # UART外设
-│   ├── soc/
-│   │   ├── riscv_soc.v       # SoC顶层集成
-│   │   └── inst_rom.v        # 指令存储器
+│   ├── soc/                    # SoC集成
+│   │   ├── riscv_soc.v        # SoC顶层集成
+│   │   ├── inst_rom.v         # 指令存储器
+│   │   ├── demo_program.v     # 综合演示程序
+│   │   └── uart_test_program.v # UART测试程序
 │   └── top.v                  # FPGA顶层模块
-├── constraints/
-│  .xdc           # └── daVinci 引脚约束文件
-├── create_project.tcl         # Vivado工程创建脚本
-└── README.md                  # 本文档
+├── constraints/                # 约束文件
+│   └── daVinci.xdc            # DaVinci引脚约束
+├── tb/                        # 测试文件
+│   ├── tb_soc.v              # SoC仿真测试
+│   └── tb_top.v              # 顶层仿真测试
+├── scripts/                   # 脚本文件
+│   ├── create_project.tcl     # Vivado工程创建脚本
+│   ├── program.tcl           # FPGA烧录脚本
+│   └── rebuild.tcl           # 重建工程脚本
+├── docs/                      # 文档
+│   ├── TESTING.md            # 测试指南
+│   ├── HOW_TO_RUN_TEST.md    # 使用说明
+│   └── COMPLETED_FEATURES.md # 功能完成清单
+└── README.md                  # 项目说明
 ```
 
 ## 硬件资源
+
+### 外设地址映射
 
 | 外设    | 基地址       | 说明 |
 |---------|--------------|------|
 | GPIO    | 0x10000000   | 4按键输入, 4 LED输出 |
 | PWM     | 0x10001000   | 蜂鸣器PWM输出 |
 | UART    | 0x10002000   | 串口通信 |
+| ROM     | 0x00000000   | 指令存储器 |
 
-### 引脚分配 (来自官方DaVinci_FPGA_IO.xdc)
+### FPGA引脚分配
 
 | 信号 | FPGA引脚 | 说明 |
 |------|----------|------|
@@ -57,31 +79,54 @@ Riscv/
 
 ## 开发工具
 
-1. **Xilinx Vivado 2020.2** 或更高版本
-2. **RISC-V GCC 工具链** (位于资料盘: `tinyriscv-gcc-toolchain.tar.gz`)
+- **Xilinx Vivado 2020.2** 或更高版本
+- **GTKWave** (用于查看仿真波形)
+- **iverilog** (用于命令行仿真)
 
-## 使用方法
+## 快速开始
 
 ### 1. 创建 Vivado 工程
 
 ```bash
 cd Riscv
-vivado -mode batch -source create_project.tcl
+vivado -mode batch -source scripts/create_project.tcl
 ```
 
-### 2. 手动创建工程
+### 2. 运行仿真测试
 
-1. 打开 Vivado
-2. 创建新工程，选择器件: **xc7a35tfgg484-2**
-3. 添加 RTL 源文件 (rtl/ 目录下所有 .v 文件)
-4. 添加约束文件 (constraints/daVinci.xdc)
-5. 综合、实现、生成比特流
+```bash
+cd Riscv
+iverilog -o tb_soc.out \
+    rtl/cpu/riscv_core.v \
+    rtl/peripheral/gpio.v \
+    rtl/peripheral/pwm.v \
+    rtl/peripheral/uart.v \
+    rtl/soc/riscv_soc.v \
+    rtl/soc/inst_rom.v \
+    rtl/soc/demo_program.v \
+    rtl/top.v \
+    tb/tb_soc.v
+vvp tb_soc.out
+```
 
-### 3. 烧录到开发板
+### 3. 查看仿真波形
 
-1. 连接开发板 (JTAG或USB)
-2. 打开硬件管理器
-3. 编程设备
+```bash
+gtkwave tb_soc.vcd
+```
+
+### 4. 烧录到开发板
+
+```bash
+vivado -mode batch -source scripts/program.tcl
+```
+
+## 详细使用指南
+
+更多详细的使用说明请参考：
+- [测试指南](docs/TESTING.md)
+- [使用说明](docs/HOW_TO_RUN_TEST.md)
+- [功能清单](docs/COMPLETED_FEATURES.md)
 
 ## 外设寄存器说明
 
@@ -112,24 +157,77 @@ vivado -mode batch -source create_project.tcl
 
 ## RISC-V 核心特性
 
-- 指令集: RV32I (基础整数指令集)
-- 流水线: 五级流水线 (IF-取指, ID-译码, EX-执行, MEM-访存, WB-写回)
-- 支持指令: add, sub, and, or, xor, sll, srl, sra, slt, sltu
-- 频率: 最高 50MHz
+- **指令集**: RV32I (基础整数指令集)
+- **流水线**: 五级流水线 (IF-取指, ID-译码, EX-执行, MEM-访存, WB-写回)
+- **数据前递**: 支持数据前递，解决数据冒险
+- **分支预测**: 支持分支和跳转指令
+- **频率**: 最高 50MHz
+
+### 支持的指令
+
+**R-type指令**:
+- add, sub, and, or, xor, sll, srl, sra, slt, sltu
+
+**I-type指令**:
+- addi, slti, andi, ori, xori, slli, srli, srai
+
+**Load/Store指令**:
+- lw, sw
+
+**分支指令**:
+- beq, bne, blt, bge, bltu, bgeu
+
+**跳转指令**:
+- jal, jalr
+
+**伪指令**:
+- lui, auipc
+
+## 项目架构
+
+### CPU流水线设计
+
+```
+IF (取指) -> ID (译码) -> EX (执行) -> MEM (访存) -> WB (写回)
+```
+
+### 数据前递机制
+
+- EX/MEM -> EX (前递到ALU输入)
+- MEM/WB -> EX (前递到ALU输入)
+- MEM/WB -> MEM (前递到存储器)
+
+### Wishbone总线
+
+- 模块化设计，易于扩展新外设
+- 支持等待状态，适应不同外设速度
+- 地址解码支持多个外设
 
 ## 注意事项
 
-1. 本项目的CPU核心是一个简化版RISC-V实现，适合学习和入门
-2. 如需完整功能，建议使用 [tinyriscv](https://gitee.com/liangkangnan/tinyriscv) 项目
+1. 本项目适合RISC-V架构学习和FPGA开发入门
+2. CPU核心为教学用途，性能有限
 3. 引脚约束基于达芬奇V2.1版本，其他版本请核对原理图
-4. CPU核心已更新为五级流水线架构，支持完整的R-type指令集
+4. 仿真测试需要安装GTKWave和iverilog
 
 ## 参考资料
 
 - [RISC-V 官方规格](https://riscv.org/technical/specifications/)
 - [正点原子达芬奇开发板资料](http://www.openedv.com/)
-- [tinyriscv 开源项目](https://gitee.com/liangkangnan/tinyriscv)
-- 工具链位置: `D:\Downloads\BaiduNetdiskDownload\tinyriscv-gcc-toolchain.tar.gz`
-- 开发板资料位置:
-  - A盘: `D:\Downloads\BaiduNetdiskDownload\【新资料-Vivado_2020.2-已完结】达芬奇FPGA开发板资料盘（A盘）`
-  - B盘: `D:\Downloads\BaiduNetdiskDownload\【新资料-Vivado_2020.2-持续更新中】正点原子达芬奇FPGA开发板资料盘（B盘）`
+- [Xilinx Vivado文档](https://www.xilinx.com/support/documentation-navigation/design-hubs/dh0002-vivado-design-hub.html)
+- [Wishbone总线规范](https://opencores.org/projects/wishbone)
+
+## 开发环境
+
+- **操作系统**: Windows 10/11
+- **FPGA工具**: Xilinx Vivado 2020.2+
+- **仿真工具**: iverilog + GTKWave
+- **目标器件**: xc7a35tfgg484-2 (Artix-7)
+
+## 贡献指南
+
+欢迎提交Issue和Pull Request来改进项目。
+
+## 许可证
+
+本项目采用MIT许可证，详见LICENSE文件。

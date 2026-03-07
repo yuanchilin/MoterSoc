@@ -1,7 +1,7 @@
 # Create Vivado Project for RISC-V SoC on DaVinci FPGA
 # Run this script in Vivado tcl console
 
-create_project riscv_davinci ./riscv_davinci -part xc7a35tfgg484-2
+create_project riscv_davinci ./riscv_davinci -part xc7a35tfgg484-2 -force
 
 # Add source files
 add_files -fileset sources_1 {
