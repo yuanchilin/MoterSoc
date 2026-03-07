@@ -284,8 +284,41 @@ module riscv_core (
     end
     
     // ==================== ID/EX 级 ====================
-    reg [31:0] id_ex_alu_out;
+    // id_ex_alu_out is computed combinatorially from operands
+    wire [31:0] id_ex_alu_out;
     
+    // ALU组合逻辑
+    assign id_ex_alu_out = 
+        (id_ex_opcode == 7'b0110011) ? (
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0000) ? (id_ex_fwd_rs1 + id_ex_fwd_rs2) :   // add
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b1000) ? (id_ex_fwd_rs1 - id_ex_fwd_rs2) :   // sub
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0001) ? (id_ex_fwd_rs1 << id_ex_fwd_rs2[4:0]) :  // sll
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0010) ? ((id_ex_fwd_rs1 < id_ex_fwd_rs2) ? 32'd1 : 32'd0) :  // slt
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0100) ? (id_ex_fwd_rs1 & id_ex_fwd_rs2) :   // and
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0110) ? (id_ex_fwd_rs1 | id_ex_fwd_rs2) :   // or
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b1100) ? (id_ex_fwd_rs1 ^ id_ex_fwd_rs2) :   // xor
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b1010) ? (($signed(id_ex_fwd_rs1) < $signed(id_ex_fwd_rs2)) ? 32'd1 : 32'd0) :  // sltu
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b0101) ? (id_ex_fwd_rs1 >> id_ex_fwd_rs2[4:0]) :  // srl
+            ({id_ex_funct7[5], id_ex_funct3} == 4'b1101) ? ($signed(id_ex_fwd_rs1) >>> id_ex_fwd_rs2[4:0]) :  // sra
+            32'h0
+        ) : (id_ex_opcode == 7'b0010011) ? (
+            (id_ex_funct3 == 3'b000) ? (id_ex_fwd_rs1 + id_ex_imm) :    // addi
+            (id_ex_funct3 == 3'b010) ? (($signed(id_ex_fwd_rs1) < $signed(id_ex_imm)) ? 32'd1 : 32'd0) :  // slti
+            (id_ex_funct3 == 3'b111) ? (id_ex_fwd_rs1 & id_ex_imm) :     // andi
+            (id_ex_funct3 == 3'b110) ? (id_ex_fwd_rs1 | id_ex_imm) :     // ori
+            (id_ex_funct3 == 3'b100) ? (id_ex_fwd_rs1 ^ id_ex_imm) :    // xori
+            (id_ex_funct3 == 3'b001) ? (id_ex_fwd_rs1 << id_ex_imm[4:0]) :  // slli
+            (id_ex_funct3 == 3'b101) ? (id_ex_imm[10] ? (id_ex_fwd_rs1 >> id_ex_imm[4:0]) : ($signed(id_ex_fwd_rs1) >>> id_ex_imm[4:0])) :  // srli/srai
+            32'h0
+        ) : (id_ex_opcode == 7'b0000011) ? (id_ex_fwd_rs1 + id_ex_imm) :  // Load
+        (id_ex_opcode == 7'b0100011) ? (id_ex_fwd_rs1 + id_ex_imm) :  // Store
+        (id_ex_opcode == 7'b1101111) ? (id_ex_pc + 32'd4) :           // jal
+        (id_ex_opcode == 7'b1100111) ? (id_ex_fwd_rs1 + id_ex_imm) :  // jalr
+        (id_ex_opcode == 7'b0110111) ? (id_ex_imm) :                  // lui
+        (id_ex_opcode == 7'b0010111) ? (id_ex_pc + id_ex_imm) :       // auipc
+        32'h0;
+    
+    // ID/EX 流水线寄存器
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             id_ex_pc <= 32'h0;
@@ -301,7 +334,6 @@ module riscv_core (
             id_ex_mem_re <= 1'b0;
             id_ex_mem_we <= 1'b0;
             id_ex_wb_sel <= 2'b00;
-            id_ex_alu_out <= 32'h0;
         end else if (flush || branch_taken) begin
             id_ex_pc <= 32'h0;
             id_ex_ir <= 32'h0;
@@ -324,45 +356,6 @@ module riscv_core (
             id_ex_mem_we <= id_mem_we;
             id_ex_wb_sel <= id_wb_sel;
         end
-    end
-    
-    // ==================== EX 级：ALU执行 ====================
-    always @(*) begin
-        id_ex_alu_out = 32'h0;
-        
-        case (id_ex_opcode)
-            7'b0110011: begin  // R-type
-                case ({id_ex_funct7[5], id_ex_funct3})
-                    4'b0000: id_ex_alu_out = id_ex_fwd_rs1 + id_ex_fwd_rs2;   // add
-                    4'b1000: id_ex_alu_out = id_ex_fwd_rs1 - id_ex_fwd_rs2;   // sub
-                    4'b0001: id_ex_alu_out = id_ex_fwd_rs1 << id_ex_fwd_rs2[4:0];  // sll
-                    4'b0010: id_ex_alu_out = (id_ex_fwd_rs1 < id_ex_fwd_rs2) ? 32'd1 : 32'd0;  // slt
-                    4'b0100: id_ex_alu_out = id_ex_fwd_rs1 & id_ex_fwd_rs2;   // and
-                    4'b0110: id_ex_alu_out = id_ex_fwd_rs1 | id_ex_fwd_rs2;   // or
-                    4'b1100: id_ex_alu_out = id_ex_fwd_rs1 ^ id_ex_fwd_rs2;   // xor
-                    4'b1010: id_ex_alu_out = ($signed(id_ex_fwd_rs1) < $signed(id_ex_fwd_rs2)) ? 32'd1 : 32'd0;  // sltu
-                    4'b0101: id_ex_alu_out = id_ex_fwd_rs1 >> id_ex_fwd_rs2[4:0];  // srl
-                    4'b1101: id_ex_alu_out = $signed(id_ex_fwd_rs1) >>> id_ex_fwd_rs2[4:0];  // sra
-                endcase
-            end
-            7'b0010011: begin  // I-type 立即数
-                case (id_ex_funct3)
-                    3'b000: id_ex_alu_out = id_ex_fwd_rs1 + id_ex_imm;    // addi
-                    3'b010: id_ex_alu_out = ($signed(id_ex_fwd_rs1) < $signed(id_ex_imm)) ? 32'd1 : 32'd0;  // slti
-                    3'b111: id_ex_alu_out = id_ex_fwd_rs1 & id_ex_imm;     // andi
-                    3'b110: id_ex_alu_out = id_ex_fwd_rs1 | id_ex_imm;     // ori
-                    3'b100: id_ex_alu_out = id_ex_fwd_rs1 ^ id_ex_imm;    // xori
-                    3'b001: id_ex_alu_out = id_ex_fwd_rs1 << id_ex_imm[4:0];  // slli
-                    3'b101: id_ex_alu_out = id_ex_imm[10] ? (id_ex_fwd_rs1 >> id_ex_imm[4:0]) : ($signed(id_ex_fwd_rs1) >>> id_ex_imm[4:0]);  // srli/srai
-                endcase
-            end
-            7'b0000011: id_ex_alu_out = id_ex_fwd_rs1 + id_ex_imm;  // Load地址计算
-            7'b0100011: id_ex_alu_out = id_ex_fwd_rs1 + id_ex_imm;  // Store地址计算
-            7'b1101111: id_ex_alu_out = id_ex_pc + 32'd4;           // jal返回地址
-            7'b1100111: id_ex_alu_out = id_ex_fwd_rs1 + id_ex_imm;  // jalr目标地址
-            7'b0110111: id_ex_alu_out = id_ex_imm;                  // lui
-            7'b0010111: id_ex_alu_out = id_ex_pc + id_ex_imm;       // auipc
-        endcase
     end
     
     // ==================== 流水线停顿控制 ====================
