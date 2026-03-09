@@ -2,7 +2,7 @@
 # Run this script to rebuild after RTL modifications
 
 # Open existing project
-open_project D:/Downloads/Agent/Riscv/riscv_davinci/riscv_davinci.xpr
+open_project riscv_davinci/riscv_davinci.xpr
 
 # Update compile order to pick up new files
 update_compile_order -fileset sources_1

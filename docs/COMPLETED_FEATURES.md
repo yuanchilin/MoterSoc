@@ -4,7 +4,189 @@
 
 本项目实现了一个完整的RISC-V SoC系统，包含五级流水线CPU核心和多种外设，支持完整的RV32I指令集。
 
-## 已完成的功能
+## 1. RISC-V CPU 核心架构详解
+
+### 1.1 整体架构
+
+本项目的 RISC-V CPU 核心 (`rtl/cpu/riscv_core.v`) 实现了一个完整的五级流水线处理器，支持 RV32I 基指令集。核心采用经典的五级流水线结构，包含取指 (IF)、译码 (ID)、执行 (EX)、访存 (MEM) 和写回 (WB) 五个阶段。
+
+**核心特性：**
+- 五级流水线架构
+- 32位 RISC-V 指令集 (RV32I)
+- 32个通用寄存器 (x0-x31)
+-  Wishbone 总线接口
+- 数据前递机制解决数据冒险
+- 流水线停顿解决 Load-Use 冒险
+- 分支前瞻判断减少流水线停顿
+
+### 1.2 五级流水线设计
+
+```
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│   IF    │ → │   ID    │ → │   EX    │ → │   MEM   │ → │   WB    │
+│  取指   │   │  译码   │   │  执行   │   │  访存   │   │  写回   │
+└─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+     ↓            ↓            ↓            ↓            ↓
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│ PC寄存器 │   │ 指令译码 │   │ ALU运算 │   │ 数据存储 │   │ 寄存器  │
+│         │   │ 立即数   │   │ 数据前递 │   │ 访问     │   │ 文件    │
+│ inst_addr│   │ 控制信号 │   │ 分支判断 │   │ mem_addr│   │ 写回    │
+└─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+```
+
+**流水线寄存器：**
+- **IF/ID 级**: `if_id_ir` (指令), `if_id_pc` (PC值)
+- **ID/EX 级**: `id_ex_pc`, `id_ex_ir`, `id_ex_rd`, `id_ex_rs1`, `id_ex_rs2`, `id_ex_imm`, `id_ex_opcode`, `id_ex_funct3`, `id_ex_funct7`, `id_ex_reg_we`, `id_ex_mem_re`, `id_ex_mem_we`, `id_ex_wb_sel`
+- **EX/MEM 级**: `ex_mem_pc`, `ex_mem_alu_out`, `ex_mem_mem_wdata`, `ex_mem_rd`, `ex_mem_reg_we`, `ex_mem_mem_re`, `ex_mem_mem_we`, `ex_mem_wb_sel`
+- **MEM/WB 级**: `mem_wb_pc`, `mem_wb_alu_out`, `mem_wb_mem_rdata`, `mem_wb_rd`, `mem_wb_reg_we`, `mem_wb_wb_sel`
+
+### 1.3 指令集支持 (RV32I)
+
+本核心支持 RISC-V RV32I 基指令集的所有指令类型：
+
+| 类型 | 指令 | 功能 |
+|------|------|------|
+| **R-type** | add, sub, and, or, xor | 算术逻辑运算 |
+| **R-type** | sll, srl, sra | 移位运算 |
+| **R-type** | slt, sltu | 比较运算 |
+| **I-type** | addi, slti, andi, ori, xori | 立即数运算 |
+| **I-type** | slli, srli, srai | 立即数移位 |
+| **Load** | lw | 加载字 |
+| **Store** | sw | 存储字 |
+| **Branch** | beq, bne, blt, bge, bltu, bgeu | 条件分支 |
+| **Jump** | jal, jalr | 跳转和链接 |
+| **LUI/AUIPC** | lui, auipc | 加载高位/PC相对地址 |
+
+### 1.4 数据前递机制 (Data Forwarding)
+
+数据前递是解决流水线数据冒险的关键技术。本实现支持以下前递路径：
+
+```
+数据前递示意图：
+
+EX/MEM 流水线寄存器 ─────────────────────┐
+     (ex_mem_alu_out)                    │
+                                         ├──→ ALU 输入 (id_ex_fwd_rs1/id_ex_fwd_rs2)
+MEM/WB 流水线寄存器 ─────────────────────┘
+     (mem_wb_alu_out / mem_wb_mem_rdata)
+```
+
+**前递逻辑实现：**
+```verilog
+// RS1 前递
+id_ex_fwd_rs1 = regs[id_rs1];
+if (ex_mem_reg_we && (ex_mem_rd != 5'h0) && (ex_mem_rd == id_rs1)) begin
+    id_ex_fwd_rs1 = ex_mem_alu_out;  // EX/MEM -> EX 前递
+end
+if (mem_wb_reg_we && (mem_wb_rd != 5'h0) && (mem_wb_rd == id_rs1)) begin
+    id_ex_fwd_rs1 = (mem_wb_wb_sel == 2'b01) ? mem_wb_mem_rdata : mem_wb_alu_out;
+end
+```
+
+**前递类型：**
+- **EX/MEM -> EX**: 从执行级结果直接前递到执行级 ALU 输入
+- **MEM/WB -> EX**: 从访存/写回级结果前递到执行级 ALU 输入
+- **MEM/WB -> MEM**: 从访存/写回级结果前递到访存级
+
+### 1.5 流水线冒险处理
+
+#### Load-Use 冒险
+
+当一条 Load 指令的结果被下一条指令使用时，需要插入流水线停顿：
+
+```verilog
+assign stall = id_ex_mem_re && (
+    (id_ex_rd == id_rs1 && id_rs1 != 5'h0) ||
+    (id_ex_rd == id_rs2 && id_rs2 != 5'h0)
+);
+```
+
+#### 分支冒险
+
+本实现采用分支前瞻判断 (early branch decision) 技术，在 ID 级立即完成分支判断，减少流水线停顿：
+
+```verilog
+always @(*) begin
+    branch_taken = 1'b0;
+    if (id_is_branch) begin
+        case (id_funct3)
+            3'b000: branch_taken = (regs[id_rs1] == regs[id_rs2]);   // beq
+            3'b001: branch_taken = (regs[id_rs1] != regs[id_rs2]);   // bne
+            3'b100: branch_taken = ($signed(regs[id_rs1]) < $signed(regs[id_rs2]));  // blt
+            3'b101: branch_taken = ($signed(regs[id_rs1]) >= $signed(regs[id_rs2])); // bge
+            3'b110: branch_taken = (regs[id_rs1] < regs[id_rs2]);    // bltu
+            3'b111: branch_taken = (regs[id_rs1] >= regs[id_rs2]);   // bgeu
+        endcase
+    end
+    if (id_is_jump) begin
+        branch_taken = 1'b1;  // 跳转指令总是采用分支
+    end
+end
+```
+
+### 1.6 控制信号
+
+流水线各级的控制信号通过 ID 级译码生成：
+
+| 控制信号 | 功能 |
+|----------|------|
+| `id_reg_we` | 寄存器写使能 |
+| `id_mem_re` | 存储器读使能 |
+| `id_mem_we` | 存储器写使能 |
+| `id_wb_sel` | 写回数据选择 (00:ALU, 01:MEM, 10:PC+4, 11:Imm) |
+| `id_is_branch` | 分支指令标志 |
+| `id_is_jump` | 跳转指令标志 |
+
+### 1.7 ALU 设计
+
+ALU 在 EX 级执行所有算术和逻辑运算，采用组合逻辑实现：
+
+```verilog
+assign id_ex_alu_out = 
+    (id_ex_opcode == 7'b0110011) ? (  // R-type
+        ({id_ex_funct7[5], id_ex_funct3} == 4'b0000) ? (id_ex_fwd_rs1 + id_ex_fwd_rs2) :   // add
+        ({id_ex_funct7[5], id_ex_funct3} == 4'b1000) ? (id_ex_fwd_rs1 - id_ex_fwd_rs2) :   // sub
+        // ... 其他运算
+    ) : /* 其他指令类型 */;
+```
+
+### 1.8 立即数生成
+
+RISC-V 指令集使用多种立即数格式，本核心支持以下立即数扩展：
+
+| 类型 | 格式 | 扩展方式 |
+|------|------|----------|
+| I-type | imm[11:0] | 符号扩展到 32 位 |
+| S-type | imm[11:5]:imm[4:0] | 符号扩展到 32 位 |
+| B-type | imm[12]:imm[10:5]:imm[4:1]:imm[11] | 符号扩展 (字节对齐) |
+| U-type | imm[31:12] | 高 20 位，地位补 0 |
+| J-type | imm[20]:imm[19:12]:imm[11]:imm[10:1] | 符号扩展 (字节对齐) |
+
+### 1.9 模块接口
+
+```verilog
+module riscv_core (
+    input  wire        clk,        // 时钟信号
+    input  wire        rst_n,      // 异步复位 (低有效)
+    output wire [31:0] inst_addr,  // 指令地址
+    input  wire [31:0] inst_data,  // 指令数据
+    output wire [31:0] mem_addr,   // 存储器地址
+    output wire        mem_we,     // 存储器写使能
+    output wire [31:0] mem_wdata,  // 存储器写数据
+    input  wire [31:0] mem_rdata,  // 存储器读数据
+    output wire        mem_re      // 存储器读使能
+);
+```
+
+### 1.10 设计优势
+
+1. **高频率**: 五级流水线支持较高的时钟频率
+2. **低延迟**: 分支前瞻判断减少分支延迟
+3. **高效率**: 数据前递最大程度减少流水线停顿
+4. **可扩展**: 模块化设计便于添加缓存、中断等特性
+5. **可教学**: 清晰的流水线结构适合学习和教学
+
+## 2. 已完成的功能
 
 ### 1. CPU核心 (已完成 ✅)
 

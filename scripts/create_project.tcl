@@ -22,12 +22,12 @@ add_files -fileset constrs_1 {
 # Set top module
 set_property top top [current_fileset]
 
-# Run synthesis and implementation
-launch_runs synth_1 -jobs 4
-wait_on_run synth_1
-launch_runs impl_1 -jobs 4
-wait_on_run impl_1
+# # Run synthesis and implementation
+# launch_runs synth_1 -jobs 4
+# wait_on_run synth_1
+# launch_runs impl_1 -jobs 4
+# wait_on_run impl_1
 
-# Generate bitstream
-launch_runs impl_1 -to_step write_bitstream -jobs 4
-wait_on_run impl_1
+# # Generate bitstream
+# launch_runs impl_1 -to_step write_bitstream -jobs 4
+# wait_on_run impl_1

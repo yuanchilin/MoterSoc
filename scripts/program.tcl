@@ -11,8 +11,8 @@ connect_hw_server -url localhost:3121
 current_hw_target [get_hw_targets */xilinx_tcf/*]
 open_hw_target
 
-# Select the FPGA device
-set_property PROGRAM.FILE {D:/Downloads/Agent/Riscv/riscv_davinci/riscv_davinci.runs/impl_1/top.bit} [current_hw_device]
+# Select the FPGA device (relative to Vivado project directory)
+set_property PROGRAM.FILE {riscv_davinci/riscv_davinci.runs/impl_1/top.bit} [current_hw_device]
 
 # Program the device
 program_hw_devices [current_hw_device]
