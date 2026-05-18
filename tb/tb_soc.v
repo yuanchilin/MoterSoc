@@ -43,21 +43,32 @@ module tb_soc;
         $display("Test 2: PWM - Generate PWM signal");
         #1000;
         
-        // Test 3: UART - Send and receive data
+        // Test 3: UART - Send and receive data (from testbench)
         $display("Test 3: UART - Send and receive data");
-        send_uart_byte(8'h41); // Send 'A'
+        send_uart_byte(8'h41); // Send 'A' to CPU (CPU may not process this)
         #10000;
-        send_uart_byte(8'h42); // Send 'B'
+        send_uart_byte(8'h42); // Send 'B' to CPU
         #10000;
         
-        // Test 4: CPU - Run simple program
-        $display("Test 4: CPU - Run simple program");
-        #5000;
+        // Test 4: CPU - Run internal program
+        $display("Test 4: CPU - Run internal program");
+        // The CPU will execute instructions from inst_rom, which contains
+        // the "Hello Justin !" program. UART TX starts automatically.
+        // Wait long enough for at least the first character 'H' to be sent.
+        // At 115200 baud (868 cycles/bit @ 50MHz), each character = 86800ns.
+        // First char starts after ~6 instructions initialization + 3 setup = ~100ns
+        #1000000;  // Wait 1ms for UART to start sending
+        $display("Simulation time extended - checking UART output");
+        
+        // Wait more for remaining characters
+        #2000000;
         
         // End simulation
         #10000;
         $display("All tests completed successfully!");
+        $display("Final state - LED: %b, PWM: %b, UART_TX: %b", led, pwm_out, uart_txd);
         $finish;
+
     end
     
     // UART transmission helper
@@ -89,35 +100,8 @@ module tb_soc;
     wire [31:0] mem_rdata;
     wire mem_re;
     
-// Instruction ROM with test program
-    reg [31:0] rom [0:255];
-    initial begin
-        // Simple test program: GPIO LED control
-        // lui x30, 0x10          # x30 = 0x10000 (GPIO base)
-        rom[0] = 32'h10000F37;
-        // addi x30, x30, 0      # Load high 20 bits
-        rom[1] = 32'h000F0F13;
-        // ori x31, x0, 1        # x31 = 1 (LED on)
-        rom[2] = 32'h00100F9b;
-        // sw x31, 0(x30)        # Write to GPIO DATA
-        rom[3] = 32'h00F02223;
-        // nop
-        rom[4] = 32'h00000013;
-        // nop
-        // jal x0, -8            # Jump back (infinite loop)
-        rom[5] = 32'hffc0106f;
-    end
-
-    // UART test程序 (移除，使用SoC内部的UART)
-    // uart_test_program u_uart_test (
-    //     .clk(clk),
-    //     .rst_n(rst_n),
-    //     .uart_status(uut.u_uart.uart_status),
-    //     .uart_rx_ready(uut.u_uart.rx_fifo_count > 0),
-    //     .uart_tx_en(uut.u_uart.uart_tx_en),
-    //     .uart_txdata(uut.u_uart.uart_txdata)
-    // );
-    assign inst_data = rom[inst_addr[9:2]];
+    // 指令由 SoC 内部的 inst_rom 提供
+    assign inst_data = 32'h00000013; // 默认NOP，由SoC内部ROM覆盖
     
     // 中间信号用于连接
     wire [31:0] gpio_in_32;
@@ -151,5 +135,22 @@ module tb_soc;
         $dumpfile("tb_soc.vcd");
         $dumpvars(0, tb_soc);
     end
+    
+    // 检测UART TX状态变化
+    reg [31:0] uart_fall_time;
+    reg [31:0] uart_rise_time;
+    initial begin
+        uart_fall_time = 0;
+        uart_rise_time = 0;
+        forever @(negedge uart_txd) begin
+            uart_fall_time = $time;
+            $display("UART TX FALLING edge at time %0t", $time);
+            @(posedge uart_txd);
+            uart_rise_time = $time;
+            $display("UART TX RISING edge at time %0t (duration: %0t)", $time, $time - uart_fall_time);
+        end
+    end
 
 endmodule
+
+

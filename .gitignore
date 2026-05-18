@@ -29,10 +29,16 @@ work/
 .DS_Store
 Thumbs.db
 
-# Vivado pid
+# Vivado pid (also catches root-level vivado*.str/log/jou)
 vivado*.str
 vivado*.log
 vivado*.jou
+
+# Vivado temp in project root (prevented by scripts but just in case)
+/vivado.jou
+/vivado.log
+/vivado_*.backup.*
+/.Xil/
 
 # Program
 transcript
@@ -41,5 +47,24 @@ transcript
 test_cpu
 
 # 新增：忽略更多Vivado临时文件
-riscv_davinci/riscv_davinci.cache/
-riscv_davinci/riscv_davinci.runs/
+build/riscv_davinci/
+
+
+# 仿真输出文件
+*.out
+*.vcd
+
+# 开发板文档（PDF/XLSX 等大文件）
+docs/1_达芬奇开发板出厂综合测试/
+docs/3_开发板原理图/
+docs/DaVinci_PeripheralTest/
+
+# 临时笔记
+DOWNLOAD_SUMMARY.txt
+PHASE1_VERIFICATION.txt
+
+# JS调试脚本
+analyze*.js
+da.js
+
+

@@ -86,15 +86,15 @@ module gpio (
             
             // 电平触发中断
             if (gpio_is[0] == 1'b0) begin  // 电平触发
-                gpio_raw_next = gpio_raw | (gpio_in & gpio_ie & gpio_dir);
+                gpio_raw_next = gpio_raw | (gpio_in & gpio_ie);
             end
             
             // 边沿触发中断
             if (gpio_is[0] == 1'b1) begin  // 边沿触发
                 if (gpio_ibe[0] == 1'b1) begin  // 双边沿
-                    gpio_raw_next = gpio_raw | (gpio_rising | gpio_falling) & gpio_ie & gpio_dir;
+                    gpio_raw_next = gpio_raw | (gpio_rising | gpio_falling) & gpio_ie;
                 end else begin  // 单边沿(上升沿)
-                    gpio_raw_next = gpio_raw | gpio_rising & gpio_ie & gpio_dir;
+                    gpio_raw_next = gpio_raw | gpio_rising & gpio_ie;
                 end
             end
             
@@ -106,7 +106,7 @@ module gpio (
                     ADDR_IE:     gpio_ie <= wdata;
                     ADDR_IS:     gpio_is <= wdata;
                     ADDR_IBE:    gpio_ibe <= wdata;
-                    ADDR_IC:     gpio_raw <= 32'h0;  // 写1清除中断
+                    ADDR_IC:     gpio_raw <= gpio_raw & ~wdata;  // W1C (写1清除对应位)
                 endcase
             end else begin
                 gpio_raw <= gpio_raw_next;

@@ -17,8 +17,8 @@
 
 ## 目录结构
 
-```
-Riscv/
+```raw
+Soc/
 ├── rtl/                        # RTL源代码
 │   ├── cpu/
 │   │   └── riscv_core.v       # RISC-V CPU核心 (RV32I)
@@ -28,23 +28,26 @@ Riscv/
 │   │   └── uart.v             # UART外设
 │   ├── soc/                    # SoC集成
 │   │   ├── riscv_soc.v        # SoC顶层集成
-│   │   ├── inst_rom.v         # 指令存储器
-│   │   ├── demo_program.v     # 综合演示程序
-│   │   └── uart_test_program.v # UART测试程序
+│   │   └── inst_rom.v         # 指令存储器 (含"Hello Justin!"测试程序)
 │   └── top.v                  # FPGA顶层模块
 ├── constraints/                # 约束文件
 │   └── daVinci.xdc            # DaVinci引脚约束
 ├── tb/                        # 测试文件
 │   ├── tb_soc.v              # SoC仿真测试
-│   └── tb_top.v              # 顶层仿真测试
+│   ├── tb_top.v              # 顶层仿真测试
+│   └── tb_uart_direct.v      # UART直连仿真测试
 ├── scripts/                   # 脚本文件
-│   ├── create_project.tcl     # Vivado工程创建脚本
-│   ├── program.tcl           # FPGA烧录脚本
-│   └── rebuild.tcl           # 重建工程脚本
-├── docs/                      # 文档
-│   ├── TESTING.md            # 测试指南
-│   ├── HOW_TO_RUN_TEST.md    # 使用说明
-│   └── COMPLETED_FEATURES.md # 功能完成清单
+│   ├── create_project.tcl     # Vivado工程创建脚本 (Tcl)
+│   ├── create_project.ps1    # Vivado工程创建脚本 (PowerShell 包装器，推荐)
+│   ├── program.tcl           # FPGA烧录脚本 (Tcl)
+│   ├── program.ps1           # FPGA烧录脚本 (PowerShell 包装器，推荐)
+│   ├── rebuild.tcl           # 重建工程脚本 (Tcl)
+│   └── rebuild.ps1           # 重建工程脚本 (PowerShell 包装器，推荐)
+├── tools/                     # 辅助工具
+│   └── encode_jal2.js        # RISC-V JAL/BEQ指令编码/解码工具
+├── build/                     # Vivado 构建输出（所有中间文件：vivado.jou/log/.Xil/.runs 均位于此目录）
+│   └── riscv_davinci/
+├── ENVIRONMENT.md             # Agent 环境配置信息
 └── README.md                  # 项目说明
 ```
 
@@ -80,53 +83,31 @@ Riscv/
 ## 开发工具
 
 - **Xilinx Vivado 2020.2** 或更高版本
-- **GTKWave** (用于查看仿真波形)
-- **iverilog** (用于命令行仿真)
 
 ## 快速开始
 
+> **推荐使用 pwsh 包装脚本**（避免中间文件污染项目根目录）
+
 ### 1. 创建 Vivado 工程
 
-```bash
-cd Riscv
-vivado -mode batch -source scripts/create_project.tcl
+```powershell
+# 在项目根目录 (Soc/) 执行
+pwsh scripts/create_project.ps1
 ```
 
-### 2. 运行仿真测试
+### 2. 重建工程（修改 RTL 后）
 
-```bash
-cd Riscv
-iverilog -o tb_soc.out \
-    rtl/cpu/riscv_core.v \
-    rtl/peripheral/gpio.v \
-    rtl/peripheral/pwm.v \
-    rtl/peripheral/uart.v \
-    rtl/soc/riscv_soc.v \
-    rtl/soc/inst_rom.v \
-    rtl/soc/demo_program.v \
-    rtl/top.v \
-    tb/tb_soc.v
-vvp tb_soc.out
+```powershell
+pwsh scripts/rebuild.ps1
 ```
 
-### 3. 查看仿真波形
+### 3. 烧录到开发板
 
-```bash
-gtkwave tb_soc.vcd
+```powershell
+pwsh scripts/program.ps1
 ```
 
-### 4. 烧录到开发板
-
-```bash
-vivado -mode batch -source scripts/program.tcl
-```
-
-## 详细使用指南
-
-更多详细的使用说明请参考：
-- [测试指南](docs/TESTING.md)
-- [使用说明](docs/HOW_TO_RUN_TEST.md)
-- [功能清单](docs/COMPLETED_FEATURES.md)
+> **为什么用 pwsh 包装脚本？** Vivado 在启动瞬间会将 `vivado.jou`、`vivado.log`、`.Xil` 写入当前工作目录。直接在 `scripts/rebuild.tcl` 里 `cd build/` 来不及拦截。pwsh 脚本在启动 Vivado 前就切到 `build/` 目录，确保所有中间文件都落在 `build/` 下，项目根目录保持清洁。
 
 ## 外设寄存器说明
 
@@ -141,10 +122,26 @@ vivado -mode batch -source scripts/program.tcl
 ### PWM (基地址: 0x10001000)
 | 偏移 | 寄存器 | 说明 |
 |------|--------|------|
-| 0x00 | CTRL | 控制寄存器 [0]: 使能, [1]: 模式 |
+| 0x00 | CTRL | 控制寄存器 [0]: 使能, [1]: 旋律使能 |
 | 0x04 | PERIOD | 周期寄存器 |
 | 0x08 | DUTY | 占空比寄存器 |
 | 0x0C | CNT | 计数器 (只读) |
+
+#### 蜂鸣器特性
+
+硬件内置旋律播放器，支持按键触发播放（key[0]-key[2]选择曲目，key[3]停止）：
+
+- **key[0]**: 小星星 (Twinkle Twinkle Little Star)
+- **key[1]**: 生日快乐 (Happy Birthday)
+- **key[2]**: 欢乐颂 (Ode to Joy)
+- **key[3]**: 停止播放
+
+设计特点：
+
+- **纯 50% 占空比方波**：压电蜂鸣器在 50% 占空比时共振效果最佳，避免非对称波形引入额外谐波导致音色刺耳
+- **音符间隙静音**：相邻不同音符间插入 5ms 静音间隙，消除频率跳变时产生的爆破点击声
+- **时序分离**：音符序列器运行在 1kHz 节奏精度，PWM 发生器全速运行于 50MHz，保证音频波形干净无毛刺
+- **3 首内置旋律**：存储在组合逻辑 ROM 中，按键即播，支持循环播放
 
 ### UART (基地址: 0x10002000)
 | 偏移 | 寄存器 | 说明 |
@@ -187,7 +184,7 @@ vivado -mode batch -source scripts/program.tcl
 
 ### CPU流水线设计
 
-```
+```raw
 IF (取指) -> ID (译码) -> EX (执行) -> MEM (访存) -> WB (写回)
 ```
 
@@ -208,7 +205,6 @@ IF (取指) -> ID (译码) -> EX (执行) -> MEM (访存) -> WB (写回)
 1. 本项目适合RISC-V架构学习和FPGA开发入门
 2. CPU核心为教学用途，性能有限
 3. 引脚约束基于达芬奇V2.1版本，其他版本请核对原理图
-4. 仿真测试需要安装GTKWave和iverilog
 
 ## 参考资料
 
@@ -221,7 +217,6 @@ IF (取指) -> ID (译码) -> EX (执行) -> MEM (访存) -> WB (写回)
 
 - **操作系统**: Windows 10/11
 - **FPGA工具**: Xilinx Vivado 2020.2+
-- **仿真工具**: iverilog + GTKWave
 - **目标器件**: xc7a35tfgg484-2 (Artix-7)
 
 ## 贡献指南

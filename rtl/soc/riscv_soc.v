@@ -108,6 +108,8 @@ module riscv_soc (
         .wdata(cpu_mem_wdata),
         .we(cpu_mem_we),
         .re(cpu_mem_re),
+        .sel(pwm_sel),
+        .keys(gpio_in[3:0]),
         .rdata(pwm_rdata),
         .pwm_out(pwm_out)
     );

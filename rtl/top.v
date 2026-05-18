@@ -47,7 +47,9 @@ module top (
     
     assign gpio_in[3:0] = key_sync1;
     assign gpio_in[31:4] = 28'b0;
+    // 恢复正常CPU控制LED
     assign led = gpio_out[3:0];
+    // assign led = key_sync1; // 直接连接按键状态到LED显示
     
     // ==================== SoC实例化 ====================
     riscv_soc u_riscv_soc (

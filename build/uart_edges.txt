@@ -1,0 +1,92 @@
+
+UART TX FALLING edge at time 330
+UART TX RISING edge at time 35050 (duration: 34720)
+UART TX FALLING edge at time 43730
+UART TX RISING edge at time 61090 (duration: 17360)
+UART TX FALLING edge at time 69770
+UART TX RISING edge at time 78450 (duration: 8680)
+UART TX FALLING edge at time 87150
+UART TX RISING edge at time 95830 (duration: 8680)
+UART TX FALLING edge at time 104510
+UART TX RISING edge at time 113190 (duration: 8680)
+UART TX FALLING edge at time 121870
+UART TX RISING edge at time 139230 (duration: 17360)
+UART TX FALLING edge at time 156590
+UART TX RISING edge at time 165270 (duration: 8680)
+UART TX FALLING edge at time 173970
+UART TX RISING edge at time 200010 (duration: 26040)
+UART TX FALLING edge at time 217370
+UART TX RISING edge at time 226050 (duration: 8680)
+UART TX FALLING edge at time 243410
+UART TX RISING edge at time 252090 (duration: 8680)
+UART TX FALLING edge at time 260790
+UART TX RISING edge at time 286830 (duration: 26040)
+UART TX FALLING edge at time 304190
+UART TX RISING edge at time 312870 (duration: 8680)
+UART TX FALLING edge at time 330230
+UART TX RISING edge at time 338910 (duration: 8680)
+UART TX FALLING edge at time 347610
+UART TX RISING edge at time 356290 (duration: 8680)
+UART TX FALLING edge at time 391010
+UART TX RISING edge at time 399690 (duration: 8680)
+UART TX FALLING edge at time 417050
+UART TX RISING edge at time 425730 (duration: 8680)
+UART TX FALLING edge at time 434430
+UART TX RISING edge at time 486510 (duration: 52080)
+UART TX FALLING edge at time 495190
+UART TX RISING edge at time 512550 (duration: 17360)
+UART TX FALLING edge at time 521250
+UART TX RISING edge at time 538610 (duration: 17360)
+UART TX FALLING edge at time 547290
+UART TX RISING edge at time 555970 (duration: 8680)
+UART TX FALLING edge at time 564650
+UART TX RISING edge at time 582010 (duration: 17360)
+UART TX FALLING edge at time 590690
+UART TX RISING edge at time 599370 (duration: 8680)
+UART TX FALLING edge at time 608070
+UART TX RISING edge at time 616750 (duration: 8680)
+UART TX FALLING edge at time 625430
+UART TX RISING edge at time 634110 (duration: 8680)
+UART TX FALLING edge at time 642790
+UART TX RISING edge at time 651470 (duration: 8680)
+UART TX FALLING edge at time 677510
+UART TX RISING edge at time 686190 (duration: 8680)
+UART TX FALLING edge at time 694890
+UART TX RISING edge at time 703570 (duration: 8680)
+UART TX FALLING edge at time 720930
+UART TX RISING edge at time 738290 (duration: 17360)
+UART TX FALLING edge at time 764330
+UART TX RISING edge at time 773010 (duration: 8680)
+UART TX FALLING edge at time 781710
+UART TX RISING edge at time 807750 (duration: 26040)
+UART TX FALLING edge at time 816430
+UART TX RISING edge at time 825110 (duration: 8680)
+UART TX FALLING edge at time 851150
+UART TX RISING edge at time 859830 (duration: 8680)
+UART TX FALLING edge at time 868530
+UART TX RISING edge at time 877210 (duration: 8680)
+UART TX FALLING edge at time 885890
+UART TX RISING edge at time 903250 (duration: 17360)
+UART TX FALLING edge at time 911930
+UART TX RISING edge at time 920610 (duration: 8680)
+UART TX FALLING edge at time 937970
+UART TX RISING edge at time 946650 (duration: 8680)
+UART TX FALLING edge at time 955350
+UART TX RISING edge at time 972710 (duration: 17360)
+UART TX FALLING edge at time 998750
+UART TX RISING edge at time 1007430 (duration: 8680)
+UART TX FALLING edge at time 1024790
+UART TX RISING edge at time 1033470 (duration: 8680)
+UART TX FALLING edge at time 1042170
+UART TX RISING edge at time 1050850 (duration: 8680)
+UART TX FALLING edge at time 1059530
+UART TX RISING edge at time 1094250 (duration: 34720)
+UART TX FALLING edge at time 1102930
+UART TX RISING edge at time 1120290 (duration: 17360)
+UART TX FALLING edge at time 1128990
+UART TX RISING edge at time 1146350 (duration: 17360)
+UART TX FALLING edge at time 1155030
+UART TX RISING edge at time 1163710 (duration: 8680)
+UART TX FALLING edge at time 1172390
+UART TX RISING edge at time 1207110 (duration: 34720)
+

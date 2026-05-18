@@ -41,12 +41,11 @@ module uart (
     assign rx_fifo_full = (rx_fifo_count == RX_FIFO_DEPTH);
     assign rx_fifo_empty = (rx_fifo_count == 0);
     
-    // ==================== 状态机 ====================
+    // ==================== TX 状态机 ====================
     localparam TX_IDLE       = 4'd0;
     localparam TX_START_BIT  = 4'd1;
     localparam TX_DATA_BITS  = 4'd2;
     localparam TX_STOP_BIT   = 4'd3;
-    localparam TX_COMPLETE   = 4'd4;
     
     localparam RX_IDLE       = 4'd0;
     localparam RX_START_BIT  = 4'd1;
@@ -89,7 +88,7 @@ module uart (
         if (re) begin
             case (addr[7:2])
                 4'h0: rdata = uart_ctrl;
-                4'h1: rdata = {28'h0, rx_fifo_count, tx_fifo_count};
+                4'h1: rdata = uart_status;
                 4'h2: rdata = uart_txdata;
                 4'h3: rdata = rx_fifo_empty ? 32'h0 : {24'h0, rx_fifo[rx_fifo_rd_ptr]};
                 4'h4: rdata = uart_bauddiv;
@@ -101,11 +100,11 @@ module uart (
             rdata = 32'h0;
     end
     
-    // ==================== 复位逻辑 ====================
+    // ==================== 复位和主逻辑 ====================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_ctrl <= 32'h0;
-            uart_bauddiv <= 32'd868;  // 115200 @ 50MHz
+            uart_bauddiv <= 32'd434;  // 115200 @ 50MHz
             uart_status <= 32'h0;
             uart_tx <= 1'b1;
             uart_txdata <= 32'h0;
@@ -122,6 +121,9 @@ module uart (
             rx_fifo_count <= 5'h0;
             tx_active <= 1'b0;
             rx_active <= 1'b0;
+            tx_baud_cnt <= 16'h0;
+            tx_bit_idx <= 3'h0;
+            tx_shift_reg <= 8'h0;
             oversample_cnt <= 16'h0;
             rx_samples <= 3'b0;
             rx_bit_stable <= 1'b1;
@@ -158,12 +160,14 @@ module uart (
             if (uart_enable && uart_tx_en) begin
                 case (tx_state)
                     TX_IDLE: begin
+                        uart_tx <= 1'b1;  // 空闲状态下确保TX线为高
                         if (!tx_fifo_empty && !tx_active) begin
                             tx_shift_reg <= tx_fifo[tx_fifo_rd_ptr];
                             tx_fifo_rd_ptr <= tx_fifo_rd_ptr + 1;
                             tx_fifo_count <= tx_fifo_count - 1;
                             tx_active <= 1'b1;
                             tx_baud_cnt <= 16'h0;
+                            uart_tx <= 1'b0;  // 立即输出起始位
                             tx_state <= TX_START_BIT;
                         end
                     end
@@ -172,8 +176,8 @@ module uart (
                         tx_baud_cnt <= tx_baud_cnt + 1;
                         if (tx_baud_cnt >= uart_bauddiv - 1) begin
                             tx_baud_cnt <= 16'h0;
-                            uart_tx <= 1'b0;  // Start bit (0)
-                            tx_bit_idx <= 3'h0;
+                            uart_tx <= tx_shift_reg[0];  // 输出 D0 (LSB)
+                            tx_bit_idx <= 3'd0;
                             tx_state <= TX_DATA_BITS;
                         end
                     end
@@ -182,29 +186,30 @@ module uart (
                         tx_baud_cnt <= tx_baud_cnt + 1;
                         if (tx_baud_cnt >= uart_bauddiv - 1) begin
                             tx_baud_cnt <= 16'h0;
-                            uart_tx <= tx_shift_reg[tx_bit_idx];
                             if (tx_bit_idx == 3'd7) begin
+                                // D7 已输出完整波特周期，输出停止位
+                                uart_tx <= 1'b1;
                                 tx_state <= TX_STOP_BIT;
                             end else begin
+                                // 输出下一位（非当前位）
                                 tx_bit_idx <= tx_bit_idx + 1;
+                                uart_tx <= tx_shift_reg[tx_bit_idx + 1];
                             end
                         end
                     end
                     
                     TX_STOP_BIT: begin
+                        // 停止位已在上一周期输出，等待一个波特周期
                         tx_baud_cnt <= tx_baud_cnt + 1;
                         if (tx_baud_cnt >= uart_bauddiv - 1) begin
                             tx_baud_cnt <= 16'h0;
-                            uart_tx <= 1'b1;  // Stop bit (1)
-                            tx_state <= TX_COMPLETE;
+                            tx_active <= 1'b0;
+                            tx_state <= TX_IDLE;
                         end
                     end
-                    
-                    TX_COMPLETE: begin
-                        tx_active <= 1'b0;
-                        tx_state <= TX_IDLE;
-                    end
+
                 endcase
+
             end else begin
                 tx_state <= TX_IDLE;
                 uart_tx <= 1'b1;
